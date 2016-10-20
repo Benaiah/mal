@@ -20,7 +20,7 @@ const rep = (arg) => {
   try {
     return PRINT( EVAL( READ(arg) ) )
   } catch (e) {
-    console.log(e.message)
+    console.log(e.name + ":", e.message)
     return ""
   }
 }
