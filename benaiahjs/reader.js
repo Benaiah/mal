@@ -43,67 +43,32 @@ const defaultReaderMacros = [
   {
     name: 'quote',
     test: (token) => /^'$/.test(token),
-    transform: (token, reader) => {
-      const nextForm = readForm(reader)
-      return { type: types.LIST,
-          val: [
-            { type: types.SYMBOL, val: "quote" },
-            nextForm
-          ]
-        }
-    }
+    transform: (token, reader) =>
+      types.list([types.symbol("quote"), readForm(reader)])
   },
   {
     name: 'quasiquote',
     test: (token) => /^\`$/.test(token),
-    transform: (token, reader) => {
-      const nextForm = readForm(reader)
-      return { type: types.LIST,
-          val: [
-            { type: types.SYMBOL, val: "quasiquote" },
-            nextForm
-          ]
-        }
-    }
+    transform: (token, reader) =>
+      types.list([types.symbol("quasiquote"), readForm(reader)])
   },
   {
-    name: 'unqote-splicing',
+    name: 'splice-unquote',
     test: (token) => /^~@$/.test(token),
-    transform: (token, reader) => {
-      const nextForm = readForm(reader)
-      return { type: types.LIST,
-          val: [
-            { type: types.SYMBOL, val: "splice-unquote" },
-            nextForm
-          ]
-        }
-    }
+    transform: (token, reader) =>
+      types.list([types.symbol("splice-unquote"), readForm(reader)])
   },
   {
     name: 'unquote',
     test: (token) => /^~$/.test(token),
-    transform: (token, reader) => {
-      const nextForm = readForm(reader)
-      return { type: types.LIST,
-          val: [
-            { type: types.SYMBOL, val: "unquote"},
-            nextForm
-          ]
-        }
-    }
+    transform: (token, reader) =>
+      types.list([types.symbol("unquote"), readForm(reader)])
   },
   {
     name: 'deref',
     test: (token) => /^@$/.test(token),
-    transform: (token, reader) => {
-      const nextForm = readForm(reader)
-      return { type: types.LIST,
-          val: [
-            { type: types.SYMBOL, val: "deref" },
-            nextForm
-          ]
-        }
-    }
+    transform: (token, reader) =>
+      types.list([types.symbol("deref"), readForm(reader)])
   },
   {
     name: 'with-meta',
@@ -111,13 +76,7 @@ const defaultReaderMacros = [
     transform: (token, reader) => {
       const firstForm = readForm(reader)
       const secondForm = readForm(reader)
-      return { type: types.LIST,
-          val: [
-            { type: types.SYMBOL, val: "with-meta" },
-            secondForm,
-            firstForm
-          ]
-      }
+      return types.list([types.symbol("with-meta"), secondForm, firstForm])
     }
   }
 ]
@@ -193,7 +152,7 @@ const getSetReader = (type, start, end, after = (arg) => arg) => {
     read: (reader) => {
       debug("readSet" + start + "" + end + ":", reader)
       let reading = true
-      let list = {
+      let ret = {
         type: type,
         val: []
       }
@@ -227,14 +186,14 @@ const getSetReader = (type, start, end, after = (arg) => arg) => {
         reading = (token === end) ? false : true;
 
         if (reading) {
-          list.val.push(readForm(reader))
+          ret.val.push(readForm(reader))
         } else {
           next()
         }
       }
 
-      debug("readSet" + start + end + " ->", list)
-      return after(list)
+      debug("readSet" + start + end + " ->", ret)
+      return after(ret)
     }
   }
 }
@@ -242,10 +201,10 @@ const getSetReader = (type, start, end, after = (arg) => arg) => {
 const setTypes = [
   getSetReader(types.LIST, "(", ")"),
   getSetReader(types.VECTOR, "[", "]"),
-  getSetReader(types.HASHMAP, "{", "}", (list) => {
-    return {
-      type: types.HASHMAP,
-      val: list.val.reduce((result, element, i, lst) => {
+  getSetReader(
+    types.HASHMAP, "{", "}",
+    (list) => types.hashmap(
+      list.val.reduce((result, element, i, lst) => {
         // Skip values, we process them along with the keys
         if (i % 2 === 1) { return result }
 
@@ -271,8 +230,8 @@ const setTypes = [
         result[keyString] = lst[i + 1]
         return result
       }, {})
-    }
-  })
+    )
+  )
 ]
 
 const readForm = (reader) => {
