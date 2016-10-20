@@ -8,6 +8,10 @@ const printStr = (element) => {
   switch (element.type) {
   case types.INTEGER:
     return element.val.toString()
+  case types.BOOL:
+    return (element.val) ? "true" : "false"
+  case types.NIL:
+    return "nil"
   case types.SYMBOL:
   case types.KEYWORD:
     return element.val

@@ -113,6 +113,21 @@ const readAtom = (reader) => {
       val: (token) => token
     },
     {
+      type: types.BOOL,
+      test: (token) => /^true$/.test(token),
+      val: (token) => types.t()
+    },
+    {
+      type: types.BOOL,
+      test: (token) => /^false$/.test(token),
+      val: (token) => types.f()
+    },
+    {
+      type: types.NIL,
+      test: (token) => /^nil$/.test(token),
+      val: (token) => types.nil()
+    },
+    {
       type: types.SYMBOL,
       test: (token) => /^[^\d][^\s]*$/.test(token),
       val: (token) => token

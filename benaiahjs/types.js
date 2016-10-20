@@ -7,7 +7,25 @@ const types = {
   SYMBOL: "SYMBOL",
   KEYWORD: "KEYWORD",
   STRING: "STRING",
+  NIL: "NIL",
+  BOOL: "BOOL",
   COMMENT: "COMMENT"
+}
+
+const nil = {
+  type: types.NIL,
+  val: undefined
+}
+
+const bools = {
+  t: {
+    type: types.BOOL,
+    val: true
+  },
+  f: {
+    type: types.BOOL,
+    val: false
+  }
 }
 
 // Construction functions, for convenience
@@ -19,7 +37,10 @@ const constructors = {
   symbol:  (val) => { return { type: types.SYMBOL,  val: val} },
   keyword: (val) => { return { type: types.KEYWORD, val: val} },
   string:  (val) => { return { type: types.STRING,  val: val} },
-  comment: (val) => { return { type: types.COMMENT, val: val} }
+  comment: (val) => { return { type: types.COMMENT, val: val} },
+  nil:     ()    => { return nil },
+  t:       ()    => { return bools.t },
+  f:       ()    => { return bools.f }
 }
 
 const is = (element, type) => element.type === type
