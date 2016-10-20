@@ -1,0 +1,11 @@
+module.exports = {
+  LIST: "LIST",
+  VECTOR: "VECTOR",
+  HASHMAP: "HASHMAP",
+  INTEGER: "INTEGER",
+  SYMBOL: "SYMBOL",
+  KEYWORD: "KEYWORD",
+  STRING: "STRING",
+  COMMENT: "COMMENT"
+}
+
