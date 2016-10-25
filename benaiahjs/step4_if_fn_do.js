@@ -1,5 +1,6 @@
 /*global require, process*/
 
+const fs = require('fs')
 const util = require('util')
 const readStr = require('./reader.js')
 const printStr = require('./printer.js')
@@ -160,19 +161,19 @@ const defaultBindings = bind({
   '+': types.fn(
     (args) =>
       types.integer(
-        Math.floor( args.reduce( (a, b) => a.val + b.val ) ))),
+        Math.floor( args.map((arg) => arg.val).reduce( (a, b) => a + b ) ))),
   '-': types.fn(
     (args) =>
       types.integer(
-        Math.floor( args.reduce( (a, b) => a.val - b.val ) ))),
+        Math.floor( args.map((arg) => arg.val).reduce( (a, b) => a - b ) ))),
   '*': types.fn(
     (args) =>
       types.integer(
-        Math.floor( args.reduce( (a, b) => a.val * b.val ) ))),
+        Math.floor( args.map((arg) => arg.val).reduce( (a, b) => a * b ) ))),
   '/': types.fn(
     (args) =>
       types.integer(
-        Math.floor( args.reduce( (a, b) => a.val / b.val ) ))),
+        Math.floor( args.map((arg) => arg.val).reduce( (a, b) => a / b ) ))),
   '=': types.fn(isEqual),
   '<': types.fn((args) => args.reduce(
     (a, b) => { return types.bool(a.val < b.val ) })),
@@ -199,8 +200,14 @@ const defaultBindings = bind({
     debug("count:", args)
     const result = args.reduce(
       (result, arg) => {
-        checkArgumentsType([arg], [types.VECTOR, types.LIST, types.NIL], 'count', 'list/vector')
-        return types.integer(result.val + arg.val.length)
+        checkArgumentsType([arg], [types.VECTOR, types.LIST,
+                                   types.HASHMAP, types.NIL], 'count', 'list/vector')
+        switch (arg.type) {
+        case types.HASHMAP:
+          return types.integer([...Object.keys(arg.val)].length)
+        default:
+          return types.integer(result.val + arg.val.length)
+        }
       }, types.integer(0))
     debug("count ->", result)
     return result
@@ -208,7 +215,85 @@ const defaultBindings = bind({
   'str': types.fn(printFunctions.str),
   'pr-str': types.fn(printFunctions.prStr),
   'prn': types.fn(printFunctions.prn),
-  'println': types.fn(printFunctions.println)
+  'println': types.fn(printFunctions.println),
+
+  'str-append': types.fn((args) => {
+    checkArgumentsType(args, [types.STRING], 'str-append', 'string')
+    return types.string(
+      args.map((arg) => arg.val).reduce((a, b) => a + b))
+  }),
+
+  'range': types.fn((args, env) => {
+    const [amount] = args
+    debug("range:", amount)
+    checkArgumentsType([amount], [types.INTEGER], 'range', 'integer')
+    const result = types.list(
+      [...Array(amount.val).keys()].map((_, i) => types.integer(i))
+    )
+    debug("range ->", result)
+    return result
+  }),
+
+  // Currently map only takes two arguments
+  'map': types.fn((args, env) => {
+    const [fn, seq] = args
+    debug("map:", fn, seq)
+    checkArgumentsType([fn], [types.FUNCTION], 'map', 'function')
+    checkArgumentsType([seq], [types.LIST, types.VECTOR], 'map', 'list/vector')
+    const result = {
+      type: seq.type,
+      val: seq.val.map((el) => {
+        return EVAL( types.list([fn, el]), env )
+      })
+    }
+    debug("map ->", result)
+    return result
+  }),
+  'reduce': types.fn((args, env) => {
+    const [fn, seq, startWith] = args
+    debug("reduce:", fn, seq, startWith)
+    checkArgumentsType([fn], [types.FUNCTION], 'map', 'function')
+    checkArgumentsType([seq], [types.LIST, types.VECTOR], 'map', 'list/vector')
+
+    const result = seq.val.reduce((result, el, i) => {
+      return (result === undefined)
+        ? el
+        : EVAL( types.list([fn, result, el, types.integer(i)]), env )
+    }, startWith)
+
+    debug("reduce ->", result)
+    return result
+  }),
+
+  'env': types.fn((args, env) => {
+    const result = types.hashmap(
+      [...Object.keys(environment.data)].reduce((result, key) => {
+        debug("env - key:", result, key, environment.data[key])
+        result["STRING:" + key] = environment.data[key]
+        return result
+      }, {})
+    )
+    debug("env ->", result)
+    return result
+  }),
+
+  'ref': types.fn((args, env) => {
+    const [key, map] = args
+    checkArgumentsType([key], [types.STRING, types.KEYWORD],
+                       'ref', 'keyword/string')
+    checkArgumentsType([map], [types.HASHMAP], 'ref', 'hashmap')
+
+    return map.val[key.type + ":" + key.val]
+  }),
+
+  'keys': types.fn((args, env) => {
+    const [map] = args
+    checkArgumentsType([map], [types.HASHMAP], 'keys', 'hashmap')
+    return types.list([...Object.keys(map.val)].map((key) => {
+      const [type, val] = key.split(":")
+      return { type, val }
+    }))
+  })
 })
 
 const environment = new Env(types.nil(), defaultBindings[0], defaultBindings[1])
@@ -378,6 +463,51 @@ const EVALSpecialForms = [
       debug("EVAL SF fn* ->", result)
       return result
     }
+  },
+  {
+    name: "fn",
+    fn: (ast, env) => {
+      const [_, argList, ...forms] = ast.val
+      return EVAL(types.list([
+        types.symbol('fn*'), argList,
+        types.list([
+          types.symbol('do'),
+          ...forms
+        ])
+      ]), env)
+    }
+  },
+  {
+    name: "defn",
+    fn: (ast, env) => {
+      const [_, name, argList, ...forms] = ast.val
+      return EVAL(types.list([
+        types.symbol('def!'), name,
+        types.list([
+          types.symbol('fn'), argList,
+          ...forms
+        ])
+      ]), env)
+    }
+  },
+  {
+    name: "quote",
+    fn: (ast, env) => {
+      const [_, quoted] = ast.val
+      return quoted
+    }
+  },
+  {
+    name: "persist",
+    fn: (ast, env) => {
+      const [_, ...forms] = ast.val
+      fs.appendFileSync(
+        __dirname + "/startup.mal",
+        "\n" + forms.map((form) => {
+          return printStr(form, false)
+        }).join("\n"))
+      return types.nil()
+    }
   }
 ]
 
@@ -433,9 +563,7 @@ const EVAL = (ast, env) => {
 }
 
 // MAL code to run on startup. Includes some additional function definitions.
-const startupMAL = `
-(def! not (fn* (a) (if a false true)))
-`
+const startupMAL = fs.readFileSync(__dirname + "/startup.mal")
 
 rep(startupMAL)
 
