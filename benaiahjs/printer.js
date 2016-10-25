@@ -6,7 +6,7 @@ const types = require('./types.js')
 const escapeOutput = (str) => str
       .replace(/\\/g, '\\\\')
       .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
+      .replace(/\\n/g, '\\n')
 
 const printStr = (element, readable = true) => {
   const recur = (element) => printStr(element, readable)
