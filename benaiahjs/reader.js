@@ -105,7 +105,13 @@ const readAtom = (reader) => {
     {
       type: types.STRING,
       test: (token) => /^\".*?\"$/.test(token),
-      val: (token) => token.slice(1, -1)
+      val: (token) => {
+        const quotesRemoved = token.slice(1, -1)
+        return quotesRemoved
+          .replace(/\\\\/g, "\\")
+          .replace(/\\\"/g, "\"")
+          .replace(/\\n/g, "\n")
+      }
     },
     {
       type: types.KEYWORD,
@@ -115,17 +121,17 @@ const readAtom = (reader) => {
     {
       type: types.BOOL,
       test: (token) => /^true$/.test(token),
-      val: (token) => types.t()
+      val: (token) => types.t().val
     },
     {
       type: types.BOOL,
       test: (token) => /^false$/.test(token),
-      val: (token) => types.f()
+      val: (token) => types.f().val
     },
     {
       type: types.NIL,
       test: (token) => /^nil$/.test(token),
-      val: (token) => types.nil()
+      val: (token) => []
     },
     {
       type: types.SYMBOL,
@@ -154,7 +160,10 @@ const readAtom = (reader) => {
     return tested ? { type: t.type, val: t.val(result) } : result
   }, transformed)
 
-  if (atom === token) { throw 'Could not parse token: "' + token + '"' }
+  if (atom === token) { throw {
+    name: 'UnparseableTokenError',
+    message: 'Could not parse token: "' + token + '"'
+  }}
   else {
     debug("readAtom ->", atom)
     return atom

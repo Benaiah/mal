@@ -2,28 +2,62 @@ const util = require('util')
 const types = require('./types.js')
 const debug = require('./debug.js')
 
+const nonSymbolBindingError = (it) => { return {
+  name: "NonSymbolBindingError",
+  message: "Cannot bind the non-symbol " + util.inspect(it)
+} }
+
+const nonSymbolLookupError = (it) => { return {
+  name: "NonSymbolBindingError",
+  message: "Cannot bind the non-symbol " + util.inspect(it)
+} }
+
 class Env {
-  constructor (outer, data) {
+  constructor (outer, binds=[], exprs=[]) {
+    debug("new Env:", outer, binds, exprs)
     this.outer = outer
-    this.data = (data === undefined) ? {} : data
+    this.data = binds.reduce((result, bind, i) => {
+      // Short circuit if the rest arg has already been bound
+      if (result.restArgBound) { return result }
+
+      if (!types.is(bind, types.SYMBOL) ) {
+        throw nonSymbolBindingError(bind)
+      }
+
+      if (bind.val === "&") {
+        result.restArgBound = true
+        const restArg = binds[i+1]
+        const restExprs = exprs.slice(i)
+
+        if (restArg === undefined) { throw {
+          name: "UnnamedRestArgError",
+          message: "Tried to bind the rest arg of an environment"
+            + " without a following symbol to bind the rest arguments to."
+        } }
+
+        debug("new Env - rest arg:", restArg, restExprs)
+        result.data[restArg.val] = types.list(restExprs)
+        return result
+      } else {
+        const expr = exprs[i]
+        debug("new Env - regular arg:", bind.val, expr)
+        result.data[bind.val] = expr
+        return result
+      }
+    }, { restArgBound: false, data: {} }).data
+    debug("new Env ->", this)
   }
 
   set (key, val) {
     if (!types.is(key, types.SYMBOL) ) {
-      throw {
-        name: "NonSymbolLookupError",
-        message: "Cannot lookup the non-symbol " + util.inspect(key)
-      }
+      throw nonSymbolBindingError(key)
     }
     this.data[key.val] = val;
   }
 
   find (key) {
     if (!types.is(key, types.SYMBOL) ) {
-      throw {
-        name: "NonSymbolLookupError",
-        message: "Cannot lookup the non-symbol " + util.inspect(key)
-      }
+      throw nonSymbolLookupError(key)
     }
     if (this.data[key.val] !== undefined) {
       return this
@@ -42,10 +76,7 @@ class Env {
 
   get (key) {
     if (!types.is(key, types.SYMBOL) ) {
-      throw {
-        name: "NonSymbolLookupError",
-        message: "Cannot lookup the non-symbol " + util.inspect(key)
-      }
+      throw nonSymbolLookupError(key)
     }
     debug("Env.get:", key)
     const env = this.find(key)
@@ -55,4 +86,14 @@ class Env {
   }
 }
 
-module.exports = Env
+const bind = (obj, makeSymbolsOfKeys=true) =>
+      Object.keys(obj).reduce((result, key, i) => {
+        const k = makeSymbolsOfKeys
+              ? types.symbol(key)
+              : key
+        result[0][i] = k
+        result[1][i] = obj[key]
+        return result
+      }, [[], []])
+
+module.exports = {Env, bind}
